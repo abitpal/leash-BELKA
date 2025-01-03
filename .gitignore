@@ -5,3 +5,7 @@
 archive.zip
 
 .DS_Store
+
+.virtual_documents
+
+.ipynb_checkpoints
