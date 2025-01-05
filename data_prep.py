@@ -100,7 +100,17 @@ class graph_data:
             Data: PyG graph representing the protein.
         """
         protein_graph = gp.construct_graph(config=self.gp_config, pdb_code=self.protein_to_pdb[protein])
-        data = convert_nx_to_pyg_data(self.preprocess_nx_graph(protein_graph))
+        nx_graph = self.preprocess_nx_graph(protein_graph)
+        data = convert_nx_to_pyg_data(nx_graph)
+
+        node_attributes = []
+        for _, node_data in nx_graph.nodes(data=True):
+            node_attributes.append(list(node_data.values()))
+
+        # Convert to a PyTorch tensor and assign to data.x
+        data.x = torch.tensor(node_attributes, dtype=torch.float)
+
+
         return data
     
     def __call__(self):
