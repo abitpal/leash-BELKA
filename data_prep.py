@@ -11,6 +11,9 @@ import pickle
 from tqdm import tqdm
 import os
 from graphein.ml.conversion import convert_nx_to_pyg_data
+import kujira
+from sklearn.preprocessing import StandardScaler
+
 
 
 class graph_data:
@@ -52,6 +55,11 @@ class graph_data:
         # Node features: one-hot encoded atom type and 3D position
         atoms = [atom.GetSymbol() for atom in mol.GetAtoms()]
         positions = mol.GetConformer().GetPositions()
+
+        #normalize positions
+        positions = StandardScaler().fit_transform(positions)
+
+
         x = torch.tensor(
             [np.concatenate([np.eye(len(self.ATOM_TYPES))[self.ATOM_TYPES.index(atom)], positions[i]]) 
             for i, atom in enumerate(atoms)],
@@ -105,11 +113,27 @@ class graph_data:
 
         node_attributes = []
         for _, node_data in nx_graph.nodes(data=True):
-            node_attributes.append(list(node_data.values()))
-
+            l = list(node_data.values())
+            a = l[-1] + l[5]
+            node_attributes.append([
+                x
+                for xs in a
+                for x in xs
+            ])
+            
         # Convert to a PyTorch tensor and assign to data.x
         data.x = torch.tensor(node_attributes, dtype=torch.float)
+        data.edge_attr = torch.tensor(data.distance, dtype=torch.float)
+        data.edge_attr = (data.edge_attr - data.edge_attr.mean()) / data.edge_attr.std()
+        data.edge_attr = data.edge_attr.unsqueeze(1)
 
+        #normalize data
+        for i in range(3):
+            data.x[:, -i - 1] -= data.x[:, -i - 1].mean()
+            data.x[:, -i - 1] /= data.x[:, -i - 1].std()
+
+        print(data.x[0])
+        print(data.edge_attr[0])
 
         return data
     
@@ -151,7 +175,11 @@ class graph_data:
             # Dump the data into the file
             pickle.dump(molecule_graphs, f)
 
-if __name__ == "__main__": 
+def collect():
     path = "data/normalized_data.csv"
     out_path = "data/graphs"
     graph_data(path, out_path)()
+
+if __name__ == "__main__": 
+    run = kujira.init(analytics_file="data_prep.py")
+    run()
