@@ -9,3 +9,7 @@ archive.zip
 .virtual_documents
 
 .ipynb_checkpoints
+
+src/__pycache__
+
+wandb
