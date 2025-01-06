@@ -132,12 +132,9 @@ class graph_data:
             data.x[:, -i - 1] -= data.x[:, -i - 1].mean()
             data.x[:, -i - 1] /= data.x[:, -i - 1].std()
 
-        print(data.x[0])
-        print(data.edge_attr[0])
-
-        return data
+        return Data(x=data.x, edge_index=data.edge_index, edge_attr=data.edge_attr)
     
-    def __call__(self):
+    def __call__(self, protein=True, molecule=True):
 
 
         """
@@ -154,32 +151,31 @@ class graph_data:
 
         print("Converting proteins to pyg...")
 
-        protein_graphs = {}
+        if (protein):
+            protein_graphs = {}
 
-        for protein in tqdm(set(self.df['protein_name'])):
-            protein_graphs[protein] = self.protein_to_pyg(protein)
+            for protein in tqdm(set(self.df['protein_name'])):
+                protein_graphs[protein] = self.protein_to_pyg(protein)
 
-        
-        with open(os.path.join(self.out_path, 'protein_graph.pkl'), 'wb') as f:
-            pickle.dump(protein_graphs, f)
             
-        # Process small molecules
-        molecule_graphs = {}
+            with open(os.path.join(self.out_path, 'protein_graph.pkl'), 'wb') as f:
+                pickle.dump(protein_graphs, f)
+                
+            # Process small molecules
+            molecule_graphs = {}
 
-        print("Converting smiles to pyg...")
+        if (molecule):
+            print("Converting smiles to pyg...")
 
-        for smiles in tqdm(set(self.df['molecule_smiles'])):
-            molecule_graphs[smiles] = self.smiles_to_pyg(smiles)
+            for smiles in tqdm(set(self.df['molecule_smiles'])):
+                molecule_graphs[smiles] = self.smiles_to_pyg(smiles)
 
-        with open(os.path.join(self.out_path, 'molecule_graph.pkl'), 'wb') as f:
-            # Dump the data into the file
-            pickle.dump(molecule_graphs, f)
+            with open(os.path.join(self.out_path, 'molecule_graph.pkl'), 'wb') as f:
+                # Dump the data into the file
+                pickle.dump(molecule_graphs, f)
 
-def collect():
-    path = "data/normalized_data.csv"
-    out_path = "data/graphs"
-    graph_data(path, out_path)()
 
 if __name__ == "__main__": 
-    run = kujira.init(analytics_file="data_prep.py")
-    run()
+    path = "data/normalized_data.csv"
+    out_path = "data/graphs"
+    graph_data(path, out_path)(molecule=False) #only do protein right now
