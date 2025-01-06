@@ -44,22 +44,22 @@ class GraphNN(torch.nn.Module):
         mg_x : torch.Tensor = mg.x
         pg_x : torch.Tensor = pg.x
         
-        for i in range(len(self.mol_gtrans)/2):
+        for i in range(len(self.mol_gtrans)//2):
             idx = i * 2
             mg_x = self.mol_gtrans[idx](mg_x, edge_index=mg.edge_index, edge_attr=mg.edge_attr) #GAT
             mg_x_res = self.mol_gtrans[idx + 1](mg_x) #FC
             mg_x_res = torch.nn.functional.elu(mg_x_res)
-            mg_x += mg_x_res
+            mg_x = mg_x + mg_x_res
 
-        for i in range(len(self.prot_gtrans)/2):
+        for i in range(len(self.prot_gtrans)//2):
             idx = i * 2
-            pg_x = self.prot_gtrans[idx](pg_x, edge_index=pg_x.edge_index, edge_attr=pg_x.edge_attr)
+            pg_x = self.prot_gtrans[idx](pg_x, edge_index=pg.edge_index, edge_attr=pg.edge_attr)
             pg_x_res = self.prot_gtrans[idx + 1](pg_x)
             pg_x_res = torch.nn.functional.elu(pg_x_res)
-            pg_x += pg_x_res
+            pg_x = pg_x + pg_x_res
 
-        mg_pool = global_add_pool(mg_x)
-        pg_pool = global_add_pool(pg_x)
+        mg_pool = global_add_pool(mg_x, mg.batch)
+        pg_pool = global_add_pool(pg_x, pg.batch)
 
         x = torch.concat((mg_pool, pg_pool), dim=-1)
 
