@@ -40,7 +40,7 @@ class GraphNN(torch.nn.Module):
         )
         
 
-    def forward(self, mg : torch_geometric.data, pg):
+    def forward(self, mg, pg):
         mg_x : torch.Tensor = mg.x
         pg_x : torch.Tensor = pg.x
         
