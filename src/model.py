@@ -34,7 +34,7 @@ class GraphNN(torch.nn.Module):
             [
                 torch.nn.Linear(out_channels * 2, out_channels),
                 torch.nn.ELU(),
-                torch.nn.Linear(out_channels, 1),
+                torch.nn.Linear(out_channels, 1, bias=False),
                 torch.nn.Sigmoid(),
             ]
         )
