@@ -5,22 +5,25 @@ import torch
 from torch.utils.data import DataLoader
 import kujira
 import sys
+import wandb
 
-def train(model: torch.nn.Module, dataloader: DataLoader, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer, tracker = None):
+def train(model: torch.nn.Module, dataloader: DataLoader, criterion: torch.nn.Module, optimizer: torch.optim.Optimizer, tracker = None, epochs=10):
     model.train()
-    for i, data in enumerate(dataloader): 
+    for epoch in range(epochs): 
+        for i, data in enumerate(dataloader): 
 
-        optimizer.zero_grad()
+            optimizer.zero_grad()
 
-        mg, pg, bind = data
-        
-        out = model(mg, pg).to("mps")
-        loss = criterion(out, bind)
+            mg, pg, bind = data
+            
+            out = model(mg, pg).to("mps")
+            loss = criterion(out, bind)
 
-        loss.backward()
-        optimizer.step()
+            loss.backward()
+            optimizer.step()
 
-        tracker("train", locals())
+            tracker("train", locals())
+            wandb.log({"Batch Loss": loss.item(), "Batch": i + epoch * len(dataloader)})
 
     return model
 
@@ -41,7 +44,7 @@ if __name__ == "__main__":
 
     mg_samp, pg_samp, _ = train_dataset[0]
 
-    model = GraphNN(128, 4, 10, (mg_samp.edge_attr.shape[-1], pg_samp.edge_attr.shape[-1]))
+    model = GraphNN(out_channels=32, heads=4, num_layers=10, edge_feature_dims=(mg_samp.edge_attr.shape[-1], pg_samp.edge_attr.shape[-1]))
 
     tracker = None
 
@@ -52,7 +55,12 @@ if __name__ == "__main__":
     criterion = torch.nn.BCELoss().to("mps")
     optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
 
+
+    wandb.init(project="Leash-BELKA", name="batch-loss-tracking")
+
     train(model, training_dataloader, criterion, optimizer, tracker)
+
+    wandb.finish()
 
 
 
