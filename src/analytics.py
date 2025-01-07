@@ -50,7 +50,7 @@ def collect(_type, var):
         print("Validation loss: " + str(val_loss))
         print("Validation accuracy: " + str(val_accuracy))
 
-        
+    
 
         
     

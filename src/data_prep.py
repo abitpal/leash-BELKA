@@ -21,7 +21,7 @@ class graph_data:
         self.df : pd.DataFrame = pd.read_csv(path)
         self.out_path = out_path
         self.BOND_TYPES : list = [val for key, val in rdkit.Chem.rdchem.BondType.values.items()]
-        self.ATOM_TYPES : list = ['B', 'Dy', 'N', 'O', 'Br', 'S', 'Cl', 'Si', 'C', 'F', 'H']
+        self.ATOM_TYPES : list = ['B', 'Dy', 'N', 'O', 'Br', 'S', 'Cl', 'Si', 'C', 'F', 'H', 'I']
         self.gp_dist_edge_func = {"edge_construction_functions": [partial(gp.add_distance_threshold, threshold=5, long_interaction_threshold=0)]}
         self.gp_one_hot = {"node_metadata_functions": [gp.amino_acid_one_hot]}
         self.gp_config = gp.ProteinGraphConfig(**{**self.gp_dist_edge_func, **self.gp_one_hot})
@@ -60,10 +60,9 @@ class graph_data:
         positions = StandardScaler().fit_transform(positions)
 
 
-        x = torch.tensor(
+        x = np.array(
             [np.concatenate([np.eye(len(self.ATOM_TYPES))[self.ATOM_TYPES.index(atom)], positions[i]]) 
             for i, atom in enumerate(atoms)],
-            dtype=torch.float
         )
 
         # Edge index and features: bond type and distances
@@ -176,6 +175,6 @@ class graph_data:
 
 
 if __name__ == "__main__": 
-    path = "data/normalized_data.csv"
-    out_path = "data/graphs"
-    graph_data(path, out_path)(molecule=False) #only do protein right now
+    path = "data/short-test.csv"
+    out_path = "data/test-graphs"
+    graph_data(path, out_path)() 

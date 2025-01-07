@@ -4,7 +4,6 @@ from torch_geometric.nn import GATv2Conv
 from torch_geometric.nn.pool import global_add_pool
 
 
-#39 
 class GraphNN(torch.nn.Module):
     def __init__(self, out_channels, heads, num_layers, edge_feature_dims : tuple = None):
         super(GraphNN, self).__init__() 
