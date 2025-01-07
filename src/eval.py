@@ -11,7 +11,7 @@ from tqdm import tqdm
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, confusion_matrix, ConfusionMatrixDisplay
 import matplotlib.pyplot as plt
 
-def eval_loop(model: torch.nn.Module, dataloader: DataLoader, tracker = None, epochs=10):
+def eval_loop(model: torch.nn.Module, dataloader: DataLoader, tracker = None):
 
     results = {'output': np.array([]), 'truth': np.array([])}
 
@@ -24,6 +24,22 @@ def eval_loop(model: torch.nn.Module, dataloader: DataLoader, tracker = None, ep
             bind = bind.cpu().numpy()
             results['output'] = np.append(results['output'], out)
             results['truth'] = np.append(results['truth'], bind)
+            if (tracker):
+                tracker("test", locals())
+
+    return results
+
+
+def pred(model: torch.nn.Module, dataloader: DataLoader, tracker = None):
+    results = np.array([])
+
+    model.train(False)
+
+    for i, data in tqdm(enumerate(dataloader)): 
+        with torch.no_grad(): 
+            mg, pg, _ = data
+            out = model(mg, pg).cpu().numpy()
+            results = np.append(results, out)
             if (tracker):
                 tracker("test", locals())
 
