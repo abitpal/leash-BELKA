@@ -13,22 +13,27 @@ import os
 from graphein.ml.conversion import convert_nx_to_pyg_data
 import kujira
 from sklearn.preprocessing import StandardScaler
-
+from dask import delayed, compute
+from dask.diagnostics import ProgressBar
 
 
 class graph_data:
     def __init__(self, path : str, out_path : str):
         self.df : pd.DataFrame = pd.read_csv(path)
         self.out_path = out_path
-        self.BOND_TYPES : list = [val for key, val in rdkit.Chem.rdchem.BondType.values.items()]
+        self.BOND_TYPES : list = [val for _, val in rdkit.Chem.rdchem.BondType.values.items()]
+        self.BOND_INDEX : dict = {bond : i for i, bond in enumerate(self.BOND_TYPES)}
         self.ATOM_TYPES : list = ['B', 'Dy', 'N', 'O', 'Br', 'S', 'Cl', 'Si', 'C', 'F', 'H', 'I']
+        self.ATOM_INDEX : dict = {atom : i for i, atom in enumerate(self.ATOM_TYPES)}
         self.gp_dist_edge_func = {"edge_construction_functions": [partial(gp.add_distance_threshold, threshold=5, long_interaction_threshold=0)]}
         self.gp_one_hot = {"node_metadata_functions": [gp.amino_acid_one_hot]}
         self.gp_config = gp.ProteinGraphConfig(**{**self.gp_dist_edge_func, **self.gp_one_hot})
         self.protein_to_pdb = {"sEH" : "3I28", "HSA" : "1AO6", "BRD4" : "7USK"}
+        self.scaler = StandardScaler()
+        self.device = "mps"
 
     # Function to process SMILES strings into a PyG graph
-    def smiles_to_pyg(self, smiles: str) -> Data:
+    def smiles_to_pyg(self, smiles: str):
         """
         Converts a SMILES string into a PyTorch Geometric Data object.
 
@@ -49,38 +54,42 @@ class graph_data:
             
         mol = editable_mold.GetMol()
 
-        AllChem.EmbedMolecule(mol, AllChem.ETKDG())
+        params = AllChem.ETKDG()
+        params.maxAttempts = 5000  # Increase embedding attempts
+        params.boxSizeMult = 2.0
+
+        AllChem.EmbedMolecule(mol, params)
 
 
         # Node features: one-hot encoded atom type and 3D position
         atoms = [atom.GetSymbol() for atom in mol.GetAtoms()]
-        positions = mol.GetConformer().GetPositions()
+
+        try: 
+            positions = mol.GetConformer().GetPositions()
+        except:
+            return None
 
         #normalize positions
-        positions = StandardScaler().fit_transform(positions)
+        positions -= positions.mean()
+        positions /= positions.std()
 
-
-        x = np.array(
-            [np.concatenate([np.eye(len(self.ATOM_TYPES))[self.ATOM_TYPES.index(atom)], positions[i]]) 
-            for i, atom in enumerate(atoms)],
-        )
+        atom_indices = [self.ATOM_INDEX.get(atom) for atom in atoms]
+        one_hot_atoms = np.eye(len(self.ATOM_TYPES))[atom_indices]
+        x = np.hstack([one_hot_atoms, positions])
 
         # Edge index and features: bond type and distances
-        edge_index = []
-        edge_attr = []
-        for bond in mol.GetBonds():
-            i, j = bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()
-            edge_index.append([i, j])
-            edge_index.append([j, i])
 
-            bond_type = bond.GetBondType()
-            bond_attr = [1 if bond_type == b else 0 for b in self.BOND_TYPES]
-            distance = np.linalg.norm(positions[i] - positions[j])
-            edge_attr.append(bond_attr + [distance])
-            edge_attr.append(bond_attr + [distance])
+        edges = np.array([[bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()] for bond in mol.GetBonds()])
+        edges = np.concatenate([edges, edges[:, ::-1]], axis=0)
+        edge_index = torch.tensor(edges, dtype=torch.long, device=self.device).t().contiguous()
 
-        edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()
-        edge_attr = torch.tensor(edge_attr, dtype=torch.float)
+        bond_types = np.array([self.BOND_INDEX.get(bond.GetBondType()) for bond in mol.GetBonds()])
+        bond_types = np.concatenate([bond_types, bond_types], axis=0)
+        one_hot_bonds = np.eye(len(self.BOND_TYPES))[bond_types]
+
+        distances = np.linalg.norm(positions[edges[:, 0]] - positions[edges[:, 1]], axis=1).reshape(-1, 1)
+
+        edge_attr = np.concatenate([one_hot_bonds, distances], axis=-1)
 
         return Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
     
@@ -121,8 +130,8 @@ class graph_data:
             ])
             
         # Convert to a PyTorch tensor and assign to data.x
-        data.x = torch.tensor(node_attributes, dtype=torch.float)
-        data.edge_attr = torch.tensor(data.distance, dtype=torch.float)
+        data.x = torch.tensor(node_attributes, dtype=torch.float, device=self.device)
+        data.edge_attr = torch.tensor(data.distance, dtype=torch.float, device=self.device)
         data.edge_attr = (data.edge_attr - data.edge_attr.mean()) / data.edge_attr.std()
         data.edge_attr = data.edge_attr.unsqueeze(1)
 
@@ -150,6 +159,8 @@ class graph_data:
 
         print("Converting proteins to pyg...")
 
+
+
         if (protein):
             protein_graphs = {}
 
@@ -160,21 +171,30 @@ class graph_data:
             with open(os.path.join(self.out_path, 'protein_graph.pkl'), 'wb') as f:
                 pickle.dump(protein_graphs, f)
                 
-            # Process small molecules
-            molecule_graphs = {}
 
         if (molecule):
-            print("Converting smiles to pyg...")
+            # Process small molecules
+            def process_smiles(smiles):
+                return smiles, self.smiles_to_pyg(smiles)
+            
+            smiles_list = list(set(self.df['molecule_smiles']))
 
-            for smiles in tqdm(set(self.df['molecule_smiles'])):
-                molecule_graphs[smiles] = self.smiles_to_pyg(smiles)
+            print("Creating tasks")
+            tasks = [delayed(process_smiles)(smiles) for smiles in smiles_list]
+
+            print("Starting compute")
+
+            with ProgressBar():  # This shows the progress bar for Dask compute
+                results = compute(*tasks)
+
+            molecule_graphs = dict(results)
 
             with open(os.path.join(self.out_path, 'molecule_graph.pkl'), 'wb') as f:
-                # Dump the data into the file
                 pickle.dump(molecule_graphs, f)
 
 
+
 if __name__ == "__main__": 
-    path = "data/short-test.csv"
-    out_path = "data/test-graphs"
+    path = "data/test.csv"
+    out_path = "data/main-test-graphs"
     graph_data(path, out_path)() 
