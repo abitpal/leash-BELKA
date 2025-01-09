@@ -5,13 +5,18 @@ from torch.utils.data import Dataset
 from torch_geometric.data import Batch
 
 class GraphDataset(Dataset):
-    def __init__(self, df, device = None):
+    def __init__(self, df, device = None, training=True, 
+                 molecule_graphs = pickle.load(open("data/graphs/molecule_graph.pkl", "rb")), 
+                 protein_graphs = pickle.load(open("data/graphs/protein_graph.pkl", "rb"))):
         self.df = df
-        self.molecule_graphs = pickle.load(open("data/graphs/molecule_graph.pkl", "rb"))
-        self.protein_graphs = pickle.load(open("data/graphs/protein_graph.pkl", "rb"))
+
+        self.molecule_graphs = molecule_graphs
+        self.protein_graphs = protein_graphs
+
         self.device = "mps"
         if (device):
             self.device = device
+        self.training = training
             
 
     def __len__(self):
@@ -23,7 +28,7 @@ class GraphDataset(Dataset):
         return val
 
     @staticmethod
-    def collate(batch):
+    def collate(batch):            
         molecules, proteins, labels = zip(*batch)
         # Batch the molecule and protein graphs using PyTorch Geometric's Batch class
         batched_molecules = Batch.from_data_list(molecules)
@@ -31,13 +36,22 @@ class GraphDataset(Dataset):
         # Stack the labels
         labels = torch.stack(labels)
         return batched_molecules, batched_proteins, labels
-
+    
+    @staticmethod
+    def collate_test(batch):
+        molecules, proteins = zip(*batch)
+        # Batch the molecule and protein graphs using PyTorch Geometric's Batch class
+        batched_molecules = Batch.from_data_list(molecules)
+        batched_proteins = Batch.from_data_list(proteins)
+        return batched_molecules, batched_proteins
 
     def __getitem__(self, idx):
         #molecule_smiles,protein_name,binds
         molecule_smiles = self.df['molecule_smiles'][idx]
         protein_name = self.df['protein_name'][idx]
-        binds = torch.Tensor([self.df['binds'][idx]]).to(self.device)
+        
+        if (self.training):
+            binds = torch.Tensor([self.df['binds'][idx]]).to(self.device)
 
         mg = self.molecule_graphs.get(molecule_smiles)
         pg = self.protein_graphs.get(protein_name)
@@ -51,6 +65,9 @@ class GraphDataset(Dataset):
         mg.edge_index = self.toTensor(mg.edge_index)
         pg.edge_index = self.toTensor(pg.edge_index)
 
-
-        return [mg, pg, binds] 
+        if self.training:
+            return [mg, pg, binds] 
+    
+        else:
+            return [mg, pg]
     

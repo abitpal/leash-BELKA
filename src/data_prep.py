@@ -18,8 +18,11 @@ from dask.diagnostics import ProgressBar
 
 
 class graph_data:
-    def __init__(self, path : str, out_path : str):
-        self.df : pd.DataFrame = pd.read_csv(path)
+    def __init__(self, path: str = None, out_path: str = None, dataframe = None):
+        if (dataframe):
+            self.df = dataframe
+        else:
+            self.df : pd.DataFrame = pd.read_csv(path)
         self.out_path = out_path
         self.BOND_TYPES : list = [val for _, val in rdkit.Chem.rdchem.BondType.values.items()]
         self.BOND_INDEX : dict = {bond : i for i, bond in enumerate(self.BOND_TYPES)}
@@ -183,6 +186,22 @@ class graph_data:
 
             molecule_graphs = dict(results)
 
+            default = None
+
+            for key in molecule_graphs:
+                if (molecule_graphs[key] != None):
+                    default = molecule_graphs[key]
+                    break
+
+            count = 0 
+            
+            for key in molecule_graphs:
+                if (molecule_graphs[key] == None):
+                    count += 1
+                    molecule_graphs[key] = default
+
+            print("The amount of None's: " + str(count))
+                  
         return protein_graphs, molecule_graphs
     
     
