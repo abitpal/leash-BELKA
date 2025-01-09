@@ -141,6 +141,50 @@ class graph_data:
             data.x[:, -i - 1] /= data.x[:, -i - 1].std()
 
         return Data(x=data.x, edge_index=data.edge_index, edge_attr=data.edge_attr)
+
+    def pack(self, protein=True, molecule=True):
+
+
+        """
+        Processes a dataset of small molecules and a protein into PyG graphs.
+
+        Args:
+            dataset (pd.DataFrame): DataFrame containing SMILES strings of small molecules.
+            pdb_code (str): PDB code of the protein.
+            config (gp.ProteinGraphConfig): Configuration for protein graph construction.
+
+        Returns:
+            list: List of PyG Data objects for small molecules and the protein graph.
+        """
+
+        protein_graphs = {}
+        
+        if (protein):
+            print("Converting proteins to pyg...")
+            for protein in tqdm(set(self.df['protein_name'])):
+                protein_graphs[protein] = self.protein_to_pyg(protein)
+
+        molecule_graphs = {}
+        
+        if (molecule):
+            # Process small molecules
+            def process_smiles(smiles):
+                return smiles, self.smiles_to_pyg(smiles)
+            
+            smiles_list = list(set(self.df['molecule_smiles']))
+
+            print("Creating tasks")
+            tasks = [delayed(process_smiles)(smiles) for smiles in smiles_list]
+
+            print("Starting compute")
+
+            with ProgressBar():  # This shows the progress bar for Dask compute
+                results = compute(*tasks)
+
+            molecule_graphs = dict(results)
+
+        return protein_graphs, molecule_graphs
+    
     
     def __call__(self, protein=True, molecule=True):
 
@@ -159,38 +203,16 @@ class graph_data:
 
         print("Converting proteins to pyg...")
 
-
+        pg, mg = self.pack(protein, molecule)
 
         if (protein):
-            protein_graphs = {}
-
-            for protein in tqdm(set(self.df['protein_name'])):
-                protein_graphs[protein] = self.protein_to_pyg(protein)
-
-            
             with open(os.path.join(self.out_path, 'protein_graph.pkl'), 'wb') as f:
-                pickle.dump(protein_graphs, f)
+                pickle.dump(pg, f)
                 
 
         if (molecule):
-            # Process small molecules
-            def process_smiles(smiles):
-                return smiles, self.smiles_to_pyg(smiles)
-            
-            smiles_list = list(set(self.df['molecule_smiles']))
-
-            print("Creating tasks")
-            tasks = [delayed(process_smiles)(smiles) for smiles in smiles_list]
-
-            print("Starting compute")
-
-            with ProgressBar():  # This shows the progress bar for Dask compute
-                results = compute(*tasks)
-
-            molecule_graphs = dict(results)
-
             with open(os.path.join(self.out_path, 'molecule_graph.pkl'), 'wb') as f:
-                pickle.dump(molecule_graphs, f)
+                pickle.dump(mg, f)
 
 
 
