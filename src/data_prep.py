@@ -19,10 +19,11 @@ from dask.diagnostics import ProgressBar
 
 class graph_data:
     def __init__(self, path: str = None, out_path: str = None, dataframe = None):
-        if (dataframe):
+        if not (dataframe is None):
             self.df = dataframe
         else:
             self.df : pd.DataFrame = pd.read_csv(path)
+
         self.out_path = out_path
         self.BOND_TYPES : list = [val for _, val in rdkit.Chem.rdchem.BondType.values.items()]
         self.BOND_INDEX : dict = {bond : i for i, bond in enumerate(self.BOND_TYPES)}
@@ -189,14 +190,14 @@ class graph_data:
             default = None
 
             for key in molecule_graphs:
-                if (molecule_graphs[key] != None):
+                if not (molecule_graphs[key] is None):
                     default = molecule_graphs[key]
                     break
 
             count = 0 
             
             for key in molecule_graphs:
-                if (molecule_graphs[key] == None):
+                if (molecule_graphs[key] is None):
                     count += 1
                     molecule_graphs[key] = default
 
