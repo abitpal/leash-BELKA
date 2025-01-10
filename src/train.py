@@ -44,7 +44,7 @@ if __name__ == "__main__":
 
     mg_samp, pg_samp, _ = train_dataset[0]
 
-    model = GraphNN(out_channels=32, heads=4, num_layers=10, edge_feature_dims=(mg_samp.edge_attr.shape[-1], pg_samp.edge_attr.shape[-1]))
+    model = GraphNN(out_channels=32, heads=4, num_layers=10, edge_feature_dims=(mg_samp.edge_attr.shape[-1], pg_samp.edge_attr.shape[-1])).to('mps')
 
     tracker = None
 
