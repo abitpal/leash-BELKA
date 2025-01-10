@@ -1,3 +1,7 @@
+import os
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+
+
 from dataset import GraphDataset
 import pandas as pd
 from model import GraphNN
@@ -17,6 +21,8 @@ def eval_loop(model: torch.nn.Module, dataloader: DataLoader, tracker = None):
 
     model.train(False)
 
+    model = model.to("mps")
+
     for i, data in tqdm(enumerate(dataloader)): 
         with torch.no_grad(): 
             mg, pg, bind = data
@@ -35,18 +41,18 @@ def pred(model: torch.nn.Module, dataloader: DataLoader, tracker = None):
 
     model.train(False)
 
-    for i, data in tqdm(enumerate(dataloader)): 
-        with torch.no_grad(): 
-            mg, pg, _ = data
+    for i, data in tqdm(enumerate(dataloader)):  
+        with torch.no_grad():
+            mg, pg = data
             out = model(mg, pg).cpu().numpy()
             results = np.append(results, out)
-            if (tracker):
+            if not (tracker is None):
                 tracker("test", locals())
 
     return results
 
 
-def eval(test_path, res_path):
+def eval(test_path, res_path, tracker=None):
     test_df = pd.read_csv(test_path)
     test_dataset = GraphDataset(test_df)
 
@@ -60,12 +66,6 @@ def eval(test_path, res_path):
 
     model = GraphNN(out_channels=32, heads=4, num_layers=10, edge_feature_dims=(mg_samp.edge_attr.shape[-1], pg_samp.edge_attr.shape[-1]))
     model.load_state_dict(torch.load("models/gnn-01-06.zip", weights_only=False))
-
-    tracker = None
-
-    if (len(sys.argv) > 1):
-        tracker_path = sys.argv[1]
-        tracker = kujira.init(tracker_path)
 
     res = eval_loop(model, test_dataloader, tracker)
 
