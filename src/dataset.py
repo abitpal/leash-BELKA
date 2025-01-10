@@ -5,7 +5,7 @@ from torch.utils.data import Dataset
 from torch_geometric.data import Batch
 
 class GraphDataset(Dataset):
-    def __init__(self, df, device = None, training=True, 
+    def __init__(self, df, device = "mps", training=True, 
                  molecule_graphs = pickle.load(open("data/graphs/molecule_graph.pkl", "rb")), 
                  protein_graphs = pickle.load(open("data/graphs/protein_graph.pkl", "rb"))):
         self.df = df
@@ -13,9 +13,7 @@ class GraphDataset(Dataset):
         self.molecule_graphs = molecule_graphs
         self.protein_graphs = protein_graphs
 
-        self.device = "mps"
-        if (device):
-            self.device = device
+        self.device = device
         self.training = training
             
 
@@ -25,7 +23,7 @@ class GraphDataset(Dataset):
     def toTensor(self, val):
         if not isinstance(val, torch.Tensor):
             return torch.Tensor(val).to(torch.float).to(self.device)
-        return val
+        return val.to(torch.float).to(self.device)
 
     @staticmethod
     def collate(batch):            
@@ -35,6 +33,9 @@ class GraphDataset(Dataset):
         batched_proteins = Batch.from_data_list(proteins)
         # Stack the labels
         labels = torch.stack(labels)
+        batched_molecules.batch = batched_molecules.batch.to("mps")
+        batched_proteins.batch = batched_proteins.batch.to("mps")
+
         return batched_molecules, batched_proteins, labels
     
     @staticmethod
@@ -43,6 +44,8 @@ class GraphDataset(Dataset):
         # Batch the molecule and protein graphs using PyTorch Geometric's Batch class
         batched_molecules = Batch.from_data_list(molecules)
         batched_proteins = Batch.from_data_list(proteins)
+        batched_molecules.batch = batched_molecules.batch.to("mps")
+        batched_proteins.batch = batched_proteins.batch.to("mps")
         return batched_molecules, batched_proteins
 
     def __getitem__(self, idx):
@@ -62,8 +65,8 @@ class GraphDataset(Dataset):
         mg.edge_attr = self.toTensor(mg.edge_attr)
         pg.edge_attr = self.toTensor(pg.edge_attr)
 
-        mg.edge_index = self.toTensor(mg.edge_index)
-        pg.edge_index = self.toTensor(pg.edge_index)
+        mg.edge_index = self.toTensor(mg.edge_index).to(torch.int64)
+        pg.edge_index = self.toTensor(pg.edge_index).to(torch.int64)
 
         if self.training:
             return [mg, pg, binds] 
