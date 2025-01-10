@@ -36,6 +36,8 @@ class graph_data:
         self.scaler = StandardScaler()
         self.device = "mps"
 
+        self.ATOM_INDEX['I'] = self.ATOM_INDEX['H']
+
     # Function to process SMILES strings into a PyG graph
     def smiles_to_pyg(self, smiles: str):
         """
@@ -78,14 +80,15 @@ class graph_data:
         positions /= positions.std()
 
         atom_indices = [self.ATOM_INDEX.get(atom) for atom in atoms]
-        one_hot_atoms = np.eye(len(self.ATOM_TYPES))[atom_indices]
+        one_hot_atoms = np.eye(len(self.ATOM_TYPES) - 1)[atom_indices]
         x = np.hstack([one_hot_atoms, positions])
+        x = torch.tensor(x, dtype=torch.float)
 
         # Edge index and features: bond type and distances
 
         edges = np.array([[bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()] for bond in mol.GetBonds()])
         edges = np.concatenate([edges, edges[:, ::-1]], axis=0)
-        edge_index = torch.tensor(edges, dtype=torch.long, device=self.device).t().contiguous()
+        edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
 
         bond_types = np.array([self.BOND_INDEX.get(bond.GetBondType()) for bond in mol.GetBonds()])
         bond_types = np.concatenate([bond_types, bond_types], axis=0)
@@ -94,6 +97,7 @@ class graph_data:
         distances = np.linalg.norm(positions[edges[:, 0]] - positions[edges[:, 1]], axis=1).reshape(-1, 1)
 
         edge_attr = np.concatenate([one_hot_bonds, distances], axis=-1)
+        edge_attr = torch.tensor(edge_attr, dtype=torch.float)
 
         return Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
     
@@ -134,10 +138,11 @@ class graph_data:
             ])
             
         # Convert to a PyTorch tensor and assign to data.x
-        data.x = torch.tensor(node_attributes, dtype=torch.float, device=self.device)
-        data.edge_attr = torch.tensor(data.distance, dtype=torch.float, device=self.device)
+        data.x = torch.tensor(node_attributes, dtype=torch.float)
+        data.edge_attr = torch.tensor(data.distance, dtype=torch.float)
         data.edge_attr = (data.edge_attr - data.edge_attr.mean()) / data.edge_attr.std()
         data.edge_attr = data.edge_attr.unsqueeze(1)
+        data.edge_index = torch.tensor(data.edge_index)
 
         #normalize data
         for i in range(3):
