@@ -21,7 +21,7 @@ model = None
 
 # os.environ["PYTORCH_ENABLE_MPS_FALLBACK"]="1"
 
-for test_df in tqdm(pd.read_csv(test_file, chunksize=100000)):
+for test_df in tqdm(pd.read_csv(test_file, chunksize=30000)):
 
     test_df.reset_index(drop=True, inplace=True)
 
