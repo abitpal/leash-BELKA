@@ -21,7 +21,14 @@ model = None
 
 # os.environ["PYTORCH_ENABLE_MPS_FALLBACK"]="1"
 
+start_chunk = 3
+chunk = 0
+
 for test_df in tqdm(pd.read_csv(test_file, chunksize=30000)):
+
+    if (chunk < start_chunk):
+        chunk += 1
+        continue
 
     test_df.reset_index(drop=True, inplace=True)
 
