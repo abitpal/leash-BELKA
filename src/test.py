@@ -21,21 +21,20 @@ model = None
 
 # os.environ["PYTORCH_ENABLE_MPS_FALLBACK"]="1"
 
-start_chunk = 3
+start_chunk = 0
 chunk = 0
 
-for test_df in tqdm(pd.read_csv(test_file, chunksize=30000)):
+for chunk, test_df in enumerate(pd.read_csv(test_file, chunksize=40000)):
 
-    if (chunk < start_chunk):
-        chunk += 1
-        continue
+    if (chunk > 1):
+        break
 
     test_df.reset_index(drop=True, inplace=True)
 
     protein_graphs, molecule_graphs = graph_data(dataframe=test_df).pack()
 
     test_dataset = GraphDataset(test_df, training=False, molecule_graphs=molecule_graphs, protein_graphs=protein_graphs)
-    batch_size = 300
+    batch_size = 150
 
     test_dataloader = DataLoader(test_dataset, batch_size=batch_size, collate_fn=GraphDataset.collate_test)
 
@@ -52,3 +51,6 @@ for test_df in tqdm(pd.read_csv(test_file, chunksize=30000)):
 
     # Save the output DataFrame to a CSV file (mode='a' appends the values)
     output_df.to_csv(output_file, index=False, mode='a', header=not os.path.exists(output_file))
+
+    del protein_graphs, molecule_graphs, test_dataset, test_dataloader
+    torch.mps.empty_cache()

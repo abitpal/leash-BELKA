@@ -153,7 +153,6 @@ class graph_data:
 
     def pack(self, protein=True, molecule=True):
 
-
         """
         Processes a dataset of small molecules and a protein into PyG graphs.
 

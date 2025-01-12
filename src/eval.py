@@ -47,7 +47,7 @@ def pred(model: torch.nn.Module, dataloader: DataLoader, tracker = None):
             out = model(mg, pg).cpu().numpy()
             results = np.append(results, out)
             if not (tracker is None):
-                tracker("test", locals())
+                tracker("test", ls())
 
     return results
 
